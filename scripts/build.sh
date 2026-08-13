@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -e                  # exit on error
-set -o pipefail         # exit on pipeline error
-set -u                  # treat unset variable as error
+set -e                 # exit on error
+set -o pipefail        # exit on pipeline error
+set -u                 # treat unset variable as error
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
@@ -203,7 +203,7 @@ check_config
 check_host
 
 # check number of args
-if [[ $# == 0 || $# > 3 ]]; then help; fi
+if [[ $# == 0 || $# -gt 3 ]]; then help; fi
 
 # loop through args
 dash_flag=false
@@ -226,7 +226,7 @@ if [[ $dash_flag == false ]]; then
     end_index=$(($start_index + 1))
 fi
 
-#loop through the commands
+# loop through the commands
 for ((ii=$start_index; ii<$end_index; ii++)); do
     ${CMD[ii]}
 done
