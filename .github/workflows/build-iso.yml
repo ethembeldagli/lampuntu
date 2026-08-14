@@ -12,16 +12,14 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      # Step 1: Checkout MUST be first so files exist to hash!
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Now cache can safely hash '**/config.sh'
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('**/config.sh') }}
+          key: ${{ runner.os }}-apt-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-apt-
 
