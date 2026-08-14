@@ -125,7 +125,7 @@ picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
 favorite-apps=['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop']
 EOF
 
-glib-compile-schemas /etc/glib-2.0/schemas/
+glib-compile-schemas /etc/glib-2.0/schemas/ || true
 
 # --------------------------------------------------
 # 7. REPLACE TEXT IN INSTALLER SLIDESHOW & MOTD
@@ -242,7 +242,7 @@ cow() {
 _check_cow_prefix() {
     local cmd="$BASH_COMMAND"
     
-    # Allow empty/internal setup commands
+    # Allow empty or internal setup commands
     [[ -z "$cmd" ]] && return
     [[ "$cmd" =~ ^_ ]] && return
     [[ "$cmd" == "cow"* ]] && return
