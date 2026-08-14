@@ -6,7 +6,13 @@ echo "      STARTING LAMPUNTU REBRANDING        "
 echo "=========================================="
 
 # --------------------------------------------------
-# 1. CHANGE OS NAME & DOMAINS IN IDENTITY FILES
+# 1. URLs FOR LOGOS AND WALLPAPER
+# --------------------------------------------------
+LAMP_LOGO_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-logo.png"
+LAMP_WALLPAPER_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-wallpaper.png"
+
+# --------------------------------------------------
+# 2. CHANGE OS NAME & IDENTITY FILES
 # --------------------------------------------------
 cat << 'EOF' > /etc/os-release
 NAME="Lampuntu"
@@ -37,38 +43,64 @@ echo "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue.net
 # Network hostname
 echo "lampuntu-pc" > /etc/hostname
 
+# Shell & MOTD Branding
+if [ -d "/etc/update-motd.d/" ]; then
+    find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
+    find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} + || true
+fi
+
+if [ -f "/etc/bash.bashrc" ]; then
+    sed -i 's/Ubuntu/Lampuntu/g' /etc/bash.bashrc || true
+fi
+
 # --------------------------------------------------
-# 2. REPLACE SYSTEM LOGOS & ICONS FROM VERCEL
+# 3. REPLACE SYSTEM LOGOS & ICONS EVERYWHERE
 # --------------------------------------------------
-LAMP_ICON_URL="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-logo.png"
+ICON_PATHS=(
+    "/usr/share/icons/hicolor/scalable/apps"
+    "/usr/share/icons/hicolor/512x512/apps"
+    "/usr/share/icons/hicolor/256x256/apps"
+    "/usr/share/icons/hicolor/128x128/apps"
+    "/usr/share/icons/hicolor/48x48/apps"
+    "/usr/share/pixmaps"
+)
 
-mkdir -p /usr/share/icons/hicolor/scalable/apps/
-mkdir -p /usr/share/icons/hicolor/512x512/apps/
-mkdir -p /usr/share/icons/hicolor/256x256/apps/
-mkdir -p /usr/share/icons/hicolor/48x48/apps/
+for path in "${ICON_PATHS[@]}"; do
+    mkdir -p "$path"
+    wget -O "$path/ubuntu-logo.png" "$LAMP_LOGO_PNG" || true
+    wget -O "$path/distributor-logo.png" "$LAMP_LOGO_PNG" || true
+    wget -O "$path/lampuntu-logo.png" "$LAMP_LOGO_PNG" || true
+    wget -O "$path/ubuntu-logo-icon.png" "$LAMP_LOGO_PNG" || true
+done
 
-# Download logo into system icon directories
-wget -O /usr/share/icons/hicolor/512x512/apps/ubuntu-logo.png "$LAMP_ICON_URL" || true
-wget -O /usr/share/icons/hicolor/512x512/apps/distributor-logo.png "$LAMP_ICON_URL" || true
-wget -O /usr/share/icons/hicolor/512x512/apps/lampuntu-logo.png "$LAMP_ICON_URL" || true
-
-# Update GTK icon cache
 if command -v gtk-update-icon-cache &> /dev/null; then
     gtk-update-icon-cache -f /usr/share/icons/hicolor/ || true
 fi
 
 # --------------------------------------------------
-# 3. SET CUSTOM WALLPAPER FROM VERCEL
+# 4. REPLACE PLYMOUTH BOOT SCREEN LOGO
+# --------------------------------------------------
+mkdir -p /usr/share/plymouth/
+mkdir -p /usr/share/plymouth/themes/spinner/
+mkdir -p /usr/share/plymouth/themes/ubuntu-logo/
+
+wget -O /usr/share/plymouth/ubuntu-logo.png "$LAMP_LOGO_PNG" || true
+wget -O /usr/share/plymouth/themes/spinner/watermark.png "$LAMP_LOGO_PNG" || true
+wget -O /usr/share/plymouth/themes/spinner/bgrt-fallback.png "$LAMP_LOGO_PNG" || true
+wget -O /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.png "$LAMP_LOGO_PNG" || true
+
+if command -v update-initramfs &> /dev/null; then
+    update-initramfs -u -k all || true
+fi
+
+# --------------------------------------------------
+# 5. SET CUSTOM DEFAULT WALLPAPER
 # --------------------------------------------------
 mkdir -p /usr/share/backgrounds/lampuntu/
 mkdir -p /etc/glib-2.0/schemas/
 
-LAMP_WALLPAPER_URL="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-wallpaper.png"
+wget -O /usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png "$LAMP_WALLPAPER_PNG" || true
 
-# Download custom PNG wallpaper
-wget -O /usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png "$LAMP_WALLPAPER_URL" || true
-
-# Override GNOME Desktop background schema for 24.04 LTS (Light and Dark mode)
 cat << 'EOF' > /etc/glib-2.0/schemas/10_lampuntu_wallpaper.gschema.override
 [org.gnome.desktop.background]
 picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
@@ -79,36 +111,15 @@ picture-options='zoom'
 picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
 EOF
 
-# Compile schema overrides into GNOME database
 glib-compile-schemas /etc/glib-2.0/schemas/
 
 # --------------------------------------------------
-# 4. REPLACE TEXT IN INSTALLER SLIDESHOW
+# 6. REPLACE TEXT IN INSTALLER SLIDESHOW
 # --------------------------------------------------
 if [ -d "/usr/share/ubiquity-slideshow-ubuntu" ]; then
-    find /usr/share/ubiquity-slideshow-ubuntu/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} +
+    find /usr/share/ubiquity-slideshow-ubuntu/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
 fi
 
 echo "=========================================="
 echo "      LAMPUNTU REBRANDING COMPLETE        "
 echo "=========================================="
-
-# --------------------------------------------------
-# 5. ADDITIONAL TEXT & SYSTEM BRANDING SWAPS
-# --------------------------------------------------
-
-# Update MOTD (Message of the Day displayed when opening terminal sessions)
-if [ -d "/etc/update-motd.d/" ]; then
-    find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} +
-    find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} +
-fi
-
-# Update default shell prompt / profile hints if present
-if [ -f "/etc/bash.bashrc" ]; then
-    sed -i 's/Ubuntu/Lampuntu/g' /etc/bash.bashrc
-fi
-
-# Override GNOME Shell name if stored in desktop entry files
-if [ -d "/usr/share/applications" ]; then
-    find /usr/share/applications/ -name "*ubuntu*" -exec rename 's/ubuntu/lampuntu/' {} + || true
-fi
