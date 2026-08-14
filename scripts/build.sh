@@ -43,19 +43,19 @@ function find_index() {
 }
 
 function chroot_enter_setup() {
-    sudo mount --bind /dev chroot/dev
-    sudo mount --bind /run chroot/run
-    sudo chroot chroot mount none -t proc /proc
-    sudo chroot chroot mount none -t sysfs /sys
-    sudo chroot chroot mount none -t devpts /dev/pts
+    sudo mount --bind /dev chroot/dev || true
+    sudo mount --bind /run chroot/run || true
+    sudo mount -t proc none chroot/proc 2>/dev/null || true
+    sudo mount -t sysfs none chroot/sys 2>/dev/null || true
+    sudo mount -t devpts none chroot/dev/pts 2>/dev/null || true
 }
 
 function chroot_exit_teardown() {
-    sudo chroot chroot umount -l /proc || true
-    sudo chroot chroot umount -l /sys || true
-    sudo chroot chroot umount -l /dev/pts || true
-    sudo umount -l chroot/dev || true
-    sudo umount -l chroot/run || true
+    sudo umount -l chroot/dev/pts 2>/dev/null || true
+    sudo umount -l chroot/proc 2>/dev/null || true
+    sudo umount -l chroot/sys 2>/dev/null || true
+    sudo umount -l chroot/dev 2>/dev/null || true
+    sudo umount -l chroot/run 2>/dev/null || true
 }
 
 function check_host() {
