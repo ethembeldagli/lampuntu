@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:
   build:
@@ -30,15 +30,13 @@ jobs:
             pulseaudio-utils \
             alsa-utils
 
-      - name: Locate and Set Executable Permissions
+      - name: Set Script Permissions
         run: |
-          # Find all shell scripts in the repository and grant execute permissions
           find . -maxdepth 2 -type f -name "*.sh" -exec chmod +x {} +
           ls -la
 
       - name: Build Lampuntu ISO
         run: |
-          # Locate build.sh even if nested in a subdirectory
           BUILD_SCRIPT=$(find . -maxdepth 2 -type f -name "build.sh" | head -n 1)
           if [ -z "$BUILD_SCRIPT" ]; then
             echo "Error: build.sh not found!"
@@ -52,7 +50,7 @@ jobs:
       - name: Locate Generated ISO File
         id: find_iso
         run: |
-          ISO_FILE=$(find . -type f -name "*.iso" | head -n 1)
+          ISO_FILE=$(find . -maxdepth 2 -type f -name "*.iso" | head -n 1)
           if [ -z "$ISO_FILE" ]; then
             echo "Error: No ISO file generated!"
             exit 1
