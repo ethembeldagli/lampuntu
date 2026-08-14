@@ -1,0 +1,53 @@
+name: Build Lampuntu Live ISO
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            vorbis-tools \
+            pulseaudio-utils \
+            alsa-utils
+
+      - name: Set Script Permissions
+        run: |
+          chmod +x *.sh
+
+      - name: Build Lampuntu ISO
+        run: |
+          sudo ./build.sh -
+
+      - name: Locate ISO File
+        id: find_iso
+        run: |
+          ISO_FILE=$(ls *.iso | head -n 1)
+          echo "Found ISO: $ISO_FILE"
+          echo "iso_path=$ISO_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lampuntu-24.04-ISO
+          path: ${{ steps.find_iso.outputs.iso_path }}
+          retention-days: 7
