@@ -59,6 +59,11 @@ function chroot_exit_teardown() {
 }
 
 function check_host() {
+    # Allow running as root if executed in GitHub Actions or CI environment
+    if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+        return 0
+    fi
+
     local os_ver
     os_ver=`lsb_release -i 2>/dev/null | grep -E "(Ubuntu|Debian)" || true`
     if [[ -z "$os_ver" ]]; then
@@ -109,7 +114,6 @@ function run_chroot() {
 
     chroot_enter_setup
 
-    # Copy customization files into chroot
     if [[ -f "$SCRIPT_DIR/make-lampuntu.sh" ]]; then
         sudo cp "$SCRIPT_DIR/make-lampuntu.sh" chroot/root/make-lampuntu.sh
         sudo chmod +x chroot/root/make-lampuntu.sh
@@ -123,7 +127,6 @@ function run_chroot() {
         sudo cp "$SCRIPT_DIR/config.sh" chroot/root/config.sh
     fi
 
-    # Execute customization inside chroot
     sudo chroot chroot /bin/bash -c "source /root/config.sh && customize_image"
 
     chroot_exit_teardown
@@ -137,17 +140,14 @@ function build_iso() {
 
     chroot_enter_setup
     
-    # Update package repositories and install kernel and live components
     sudo chroot chroot apt-get update
     sudo chroot chroot apt-get install -y "${TARGET_KERNEL_PACKAGE}" casper grub-efi-amd64-signed
 
     chroot_exit_teardown
 
-    # Copy Kernel and Initrd
     sudo cp chroot/boot/vmlinuz-* image/casper/vmlinuz
     sudo cp chroot/boot/initrd.img-* image/casper/initrd
 
-    # Fast multi-core SquashFS compression
     sudo rm -f image/casper/filesystem.squashfs
     sudo mksquashfs chroot image/casper/filesystem.squashfs \
         -noappend -no-duplicates -no-recovery \
@@ -161,10 +161,8 @@ function build_iso() {
         -e "tmp/.*" \
         -e "swapfile"
 
-    # Write the filesystem.size
     printf $(sudo du -sx --block-size=1 chroot | cut -f1) | sudo tee image/casper/filesystem.size
 
-    # Create GRUB configuration
     cat << EOF_GRUB > image/isolinux/grub.cfg
 search --set=root --file /casper/vmlinuz
 insmod all_video
@@ -183,7 +181,6 @@ menuentry "${GRUB_INSTALL_LABEL}" {
 }
 EOF_GRUB
 
-    # Generate EFI boot images
     mkdir -p image/EFI/boot
     grub-mkstandalone \
         --format=x86_64-efi \
@@ -200,7 +197,6 @@ EOF_GRUB
     mcopy -i efiboot.img bootx64.efi ::EFI/BOOT/BOOTX64.EFI
     cd ../..
 
-    # Generate final ISO
     ISO_NAME="${TARGET_NAME}-${TARGET_UBUNTU_VERSION}-amd64-${DATE}.iso"
 
     sudo xorriso -as mkisofs \
