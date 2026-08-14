@@ -71,3 +71,10 @@ jobs:
           name: Lampuntu-24.04-ISO
           path: ${{ steps.find_iso.outputs.iso_path }}
           retention-days: 7
+
+      # Fix permissions so actions/cache can read /var/cache/apt/archives during post-job cleanup
+      - name: Prepare APT Cache Permissions
+        if: always()
+        run: |
+          sudo chmod -R 777 /var/cache/apt/archives || true
+          sudo rm -rf /var/cache/apt/archives/partial /var/cache/apt/archives/lock || true
