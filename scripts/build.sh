@@ -201,7 +201,7 @@ EOF_GRUB
 
     sudo xorriso -as mkisofs \
         -iso-level 3 \
-        -full-iso-ribbon \
+        -full-iso9660-filenames \
         -volid "LAMPUNTU_LIVE" \
         -output "${ISO_NAME}" \
         -eltorito-boot isolinux/efiboot.img \
