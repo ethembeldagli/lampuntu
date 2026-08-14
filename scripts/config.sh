@@ -37,7 +37,7 @@ function customize_image() {
     apt-get install -y \
         plymouth-themes \
         ubuntu-desktop-minimal \
-        ubuntu-wallpapers
+        ubuntu-wallpapers || true
 
     # Install necessary tools and audio playback utilities
     apt-get install -y \
@@ -49,14 +49,14 @@ function customize_image() {
         less \
         vorbis-tools \
         alsa-utils \
-        pulseaudio-utils
+        pulseaudio-utils || true
 
     # Execute custom Lampuntu rebrand script inside chroot
     if [ -f "/root/make-lampuntu.sh" ]; then
         bash /root/make-lampuntu.sh
     fi
 
-    # Purge unused default applications
+    # Purge unused default applications safely
     apt-get purge -y \
         transmission-gtk \
         transmission-common \
@@ -67,7 +67,7 @@ function customize_image() {
         hitori || true
 
     # Clean up APT packages
-    apt-get autoremove --purge -y
+    apt-get autoremove --purge -y || true
     apt-get clean
     rm -rf /var/lib/apt/lists/*
 }
