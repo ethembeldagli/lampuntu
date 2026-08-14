@@ -36,7 +36,9 @@ jobs:
             dosfstools \
             vorbis-tools \
             pulseaudio-utils \
-            alsa-utils
+            alsa-utils \
+            isolinux \
+            syslinux-utils
 
       - name: Set Script Permissions
         run: |
