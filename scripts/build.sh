@@ -11,7 +11,6 @@ CMD=(setup_host debootstrap run_chroot build_iso)
 DATE=`TZ="UTC" date +"%y%m%d-%H%M%S"`
 
 function help() {
-    # if $1 is set, use $1 as headline message in help()
     if [ -z ${1+x} ]; then
         echo -e "This script builds a bootable ubuntu ISO image"
         echo -e
@@ -72,7 +71,6 @@ function check_host() {
     fi
 }
 
-# Load configuration values from file
 function load_config() {
     if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
         . "$SCRIPT_DIR/config.sh"
@@ -84,7 +82,6 @@ function load_config() {
     fi
 }
 
-# Verify that necessary configuration values are set and they are valid
 function check_config() {
     local expected_config_version
     expected_config_version="0.4"
@@ -115,6 +112,12 @@ function run_chroot() {
     # Setup build scripts in chroot environment
     sudo ln -f $SCRIPT_DIR/chroot_build.sh chroot/root/chroot_build.sh
     sudo ln -f $SCRIPT_DIR/default_config.sh chroot/root/default_config.sh
+
+    if [[ -f "$SCRIPT_DIR/make-lampuntu.sh" ]]; then
+        sudo cp $SCRIPT_DIR/make-lampuntu.sh chroot/root/make-lampuntu.sh
+        sudo chmod +x chroot/root/make-lampuntu.sh
+    fi
+
     if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
         sudo ln -f $SCRIPT_DIR/config.sh chroot/root/config.sh
     fi
@@ -125,6 +128,7 @@ function run_chroot() {
     # Cleanup after image changes
     sudo rm -f chroot/root/chroot_build.sh
     sudo rm -f chroot/root/default_config.sh
+    sudo rm -f chroot/root/make-lampuntu.sh
     if [[ -f "chroot/root/config.sh" ]]; then
         sudo rm -f chroot/root/config.sh
     fi
@@ -195,17 +199,14 @@ function build_iso() {
 
 # =============   main  ================
 
-# we always stay in $SCRIPT_DIR
 cd $SCRIPT_DIR
 
 load_config
 check_config
 check_host
 
-# check number of args
 if [[ $# == 0 || $# -gt 3 ]]; then help; fi
 
-# loop through args
 dash_flag=false
 start_index=0
 end_index=${#CMD[*]}
@@ -226,7 +227,6 @@ if [[ $dash_flag == false ]]; then
     end_index=$(($start_index + 1))
 fi
 
-# loop through the commands
 for ((ii=$start_index; ii<$end_index; ii++)); do
     ${CMD[ii]}
 done
