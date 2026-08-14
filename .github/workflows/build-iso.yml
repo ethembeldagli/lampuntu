@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,6 +14,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/config.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
 
       - name: Install Build Dependencies
         run: |
@@ -33,7 +41,6 @@ jobs:
       - name: Set Script Permissions
         run: |
           find . -maxdepth 2 -type f -name "*.sh" -exec chmod +x {} +
-          ls -la
 
       - name: Build Lampuntu ISO
         run: |
