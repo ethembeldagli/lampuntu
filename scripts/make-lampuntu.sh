@@ -63,4 +63,52 @@ fi
 mkdir -p /usr/share/backgrounds/lampuntu/
 mkdir -p /etc/glib-2.0/schemas/
 
-LAMP_WALLPAPER_URL="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98
+LAMP_WALLPAPER_URL="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-wallpaper.png"
+
+# Download custom PNG wallpaper
+wget -O /usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png "$LAMP_WALLPAPER_URL" || true
+
+# Override GNOME Desktop background schema for 24.04 LTS (Light and Dark mode)
+cat << 'EOF' > /etc/glib-2.0/schemas/10_lampuntu_wallpaper.gschema.override
+[org.gnome.desktop.background]
+picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
+picture-uri-dark='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
+picture-options='zoom'
+
+[org.gnome.desktop.screensaver]
+picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
+EOF
+
+# Compile schema overrides into GNOME database
+glib-compile-schemas /etc/glib-2.0/schemas/
+
+# --------------------------------------------------
+# 4. REPLACE TEXT IN INSTALLER SLIDESHOW
+# --------------------------------------------------
+if [ -d "/usr/share/ubiquity-slideshow-ubuntu" ]; then
+    find /usr/share/ubiquity-slideshow-ubuntu/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} +
+fi
+
+echo "=========================================="
+echo "      LAMPUNTU REBRANDING COMPLETE        "
+echo "=========================================="
+
+# --------------------------------------------------
+# 5. ADDITIONAL TEXT & SYSTEM BRANDING SWAPS
+# --------------------------------------------------
+
+# Update MOTD (Message of the Day displayed when opening terminal sessions)
+if [ -d "/etc/update-motd.d/" ]; then
+    find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} +
+    find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} +
+fi
+
+# Update default shell prompt / profile hints if present
+if [ -f "/etc/bash.bashrc" ]; then
+    sed -i 's/Ubuntu/Lampuntu/g' /etc/bash.bashrc
+fi
+
+# Override GNOME Shell name if stored in desktop entry files
+if [ -d "/usr/share/applications" ]; then
+    find /usr/share/applications/ -name "*ubuntu*" -exec rename 's/ubuntu/lampuntu/' {} + || true
+fi
