@@ -36,14 +36,17 @@ function customize_image() {
         ubuntu-desktop-minimal \
         ubuntu-wallpapers
 
-    # Install necessary tools
+    # Install necessary tools & audio utilities for cow sound triggers
     apt-get install -y \
         apt-transport-https \
         curl \
         wget \
         vim \
         nano \
-        less
+        less \
+        vorbis-tools \
+        alsa-utils \
+        pulseaudio-utils
 
     # Execute custom Lampuntu rebrand script inside chroot
     if [ -f "/root/make-lampuntu.sh" ]; then
@@ -58,5 +61,10 @@ function customize_image() {
         gnome-mines \
         gnome-sudoku \
         aisleriot \
-        hitori
+        thunderbird || true
+
+    # Clean up APT packages
+    apt-get autoremove --purge -y
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
 }
