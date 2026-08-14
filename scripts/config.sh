@@ -30,13 +30,16 @@ export TARGET_PACKAGE_REMOVE="
 
 # Package customization function
 function customize_image() {
+    # Update APT lists inside chroot
+    apt-get update
+
     # Install graphics and minimal desktop
     apt-get install -y \
         plymouth-themes \
         ubuntu-desktop-minimal \
         ubuntu-wallpapers
 
-    # Install necessary tools & audio utilities for cow sound triggers
+    # Install necessary tools and audio playback utilities
     apt-get install -y \
         apt-transport-https \
         curl \
@@ -61,7 +64,7 @@ function customize_image() {
         gnome-mines \
         gnome-sudoku \
         aisleriot \
-        thunderbird || true
+        hitori || true
 
     # Clean up APT packages
     apt-get autoremove --purge -y
