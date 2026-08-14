@@ -6,7 +6,7 @@ echo "      STARTING LAMPUNTU REBRANDING        "
 echo "=========================================="
 
 # --------------------------------------------------
-# 1. URLs FOR LOGOS AND WALLPAPER
+# 1. ASSET URLS FROM VERCEL
 # --------------------------------------------------
 LAMP_LOGO_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-logo.png"
 LAMP_WALLPAPER_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-wallpaper.png"
@@ -43,18 +43,26 @@ echo "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue.net
 # Network hostname
 echo "lampuntu-pc" > /etc/hostname
 
-# Shell & MOTD Branding
-if [ -d "/etc/update-motd.d/" ]; then
-    find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
-    find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} + || true
-fi
+# --------------------------------------------------
+# 3. DISPLAY COLORED ANSI ART ON TERMINAL LAUNCH
+# --------------------------------------------------
+mkdir -p /etc/profile.d/
 
-if [ -f "/etc/bash.bashrc" ]; then
-    sed -i 's/Ubuntu/Lampuntu/g' /etc/bash.bashrc || true
+cat << 'EOF' > /etc/profile.d/lampuntu-welcome.sh
+#!/bin/bash
+if [ -t 0 ] && [ -f /etc/lampuntu-logo.ansi.txt ]; then
+    echo ""
+    cat /etc/lampuntu-logo.ansi.txt
+    echo ""
+    echo -e "\e[1;96mWelcome to Lampuntu 24.04 LTS!\e[0m"
+    echo ""
 fi
+EOF
+
+chmod +x /etc/profile.d/lampuntu-welcome.sh
 
 # --------------------------------------------------
-# 3. REPLACE SYSTEM LOGOS & ICONS EVERYWHERE
+# 4. REPLACE SYSTEM LOGOS & ICONS EVERYWHERE
 # --------------------------------------------------
 ICON_PATHS=(
     "/usr/share/icons/hicolor/scalable/apps"
@@ -63,6 +71,7 @@ ICON_PATHS=(
     "/usr/share/icons/hicolor/128x128/apps"
     "/usr/share/icons/hicolor/48x48/apps"
     "/usr/share/pixmaps"
+    "/usr/share/gnome-control-center/pixmaps"
 )
 
 for path in "${ICON_PATHS[@]}"; do
@@ -71,6 +80,7 @@ for path in "${ICON_PATHS[@]}"; do
     wget -O "$path/distributor-logo.png" "$LAMP_LOGO_PNG" || true
     wget -O "$path/lampuntu-logo.png" "$LAMP_LOGO_PNG" || true
     wget -O "$path/ubuntu-logo-icon.png" "$LAMP_LOGO_PNG" || true
+    wget -O "$path/system-logo-ubuntu.png" "$LAMP_LOGO_PNG" || true
 done
 
 if command -v gtk-update-icon-cache &> /dev/null; then
@@ -78,7 +88,7 @@ if command -v gtk-update-icon-cache &> /dev/null; then
 fi
 
 # --------------------------------------------------
-# 4. REPLACE PLYMOUTH BOOT SCREEN LOGO
+# 5. REPLACE PLYMOUTH BOOT SCREEN LOGO
 # --------------------------------------------------
 mkdir -p /usr/share/plymouth/
 mkdir -p /usr/share/plymouth/themes/spinner/
@@ -94,7 +104,7 @@ if command -v update-initramfs &> /dev/null; then
 fi
 
 # --------------------------------------------------
-# 5. SET CUSTOM DEFAULT WALLPAPER
+# 6. SET CUSTOM DEFAULT WALLPAPER & DOCK
 # --------------------------------------------------
 mkdir -p /usr/share/backgrounds/lampuntu/
 mkdir -p /etc/glib-2.0/schemas/
@@ -109,15 +119,23 @@ picture-options='zoom'
 
 [org.gnome.desktop.screensaver]
 picture-uri='file:///usr/share/backgrounds/lampuntu/lampuntu-wallpaper.png'
+
+[org.gnome.shell]
+favorite-apps=['firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop']
 EOF
 
 glib-compile-schemas /etc/glib-2.0/schemas/
 
 # --------------------------------------------------
-# 6. REPLACE TEXT IN INSTALLER SLIDESHOW
+# 7. REPLACE TEXT IN INSTALLER SLIDESHOW & MOTD
 # --------------------------------------------------
 if [ -d "/usr/share/ubiquity-slideshow-ubuntu" ]; then
     find /usr/share/ubiquity-slideshow-ubuntu/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
+fi
+
+if [ -d "/etc/update-motd.d/" ]; then
+    find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
+    find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} + || true
 fi
 
 echo "=========================================="
