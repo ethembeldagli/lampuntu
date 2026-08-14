@@ -52,10 +52,6 @@ jobs:
           
           BUILD_DIR=$(dirname "$BUILD_SCRIPT")
           cd "$BUILD_DIR"
-
-          # Bypass the 'check_host' root check inside GitHub Actions CI runner
-          sed -i 's/check_host/# check_host/g' build.sh
-
           ./build.sh -
 
       - name: Locate Generated ISO File
