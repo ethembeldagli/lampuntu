@@ -13,20 +13,20 @@ DATE=`TZ="UTC" date +"%y%m%d-%H%M%S"`
 function help() {
     if [ -z ${1+x} ]; then
         echo -e "This script builds a bootable ubuntu ISO image"
-        echo -e
+        echo -e ""
     else
-        echo -e $1
-        echo
+        echo -e "$1"
+        echo ""
     fi
     echo -e "Supported commands : ${CMD[*]}"
-    echo -e
+    echo -e ""
     echo -e "Syntax: $0 [start_cmd] [-] [end_cmd]"
     echo -e "\trun from start_cmd to end_end"
     echo -e "\tif start_cmd is omitted, start from first command"
     echo -e "\tif end_cmd is omitted, end with last command"
     echo -e "\tenter single cmd to run the specific command"
     echo -e "\tenter '-' as only argument to run all commands"
-    echo -e
+    echo -e ""
     exit 0
 }
 
@@ -59,8 +59,8 @@ function chroot_exit_teardown() {
 }
 
 function check_host() {
-    # Allow running as root if executed in GitHub Actions or CI environment
-    if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+    # Allow running as root in GitHub Actions or CI environment
+    if [ "${GITHUB_ACTIONS:-false}" = "true" ] || [ "${CI:-false}" = "true" ]; then
         return 0
     fi
 
