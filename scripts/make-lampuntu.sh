@@ -10,6 +10,7 @@ echo "=========================================="
 # --------------------------------------------------
 LAMP_LOGO_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-logo.png"
 LAMP_WALLPAPER_PNG="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/images/lampuntu-wallpaper.png"
+LAMP_MOO_OGA="https://0sa89df00a9sd8fa9sdfas8df9a8s0df98a.vercel.app/audio/moo.oga"
 
 # --------------------------------------------------
 # 2. CHANGE OS NAME & IDENTITY FILES
@@ -37,8 +38,8 @@ DISTRIB_DESCRIPTION="Lampuntu 24.04 LTS"
 EOF
 
 # Terminal TTY login greetings
-echo "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue
-echo "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue.net
+echo -e "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue
+echo -e "Welcome to Lampuntu 24.04 LTS \n \l" > /etc/issue.net
 
 # Network hostname
 echo "lampuntu-pc" > /etc/hostname
@@ -137,6 +138,21 @@ if [ -d "/etc/update-motd.d/" ]; then
     find /etc/update-motd.d/ -type f -exec sed -i 's/Ubuntu/Lampuntu/g' {} + || true
     find /etc/update-motd.d/ -type f -exec sed -i 's/ubuntu/lampuntu/g' {} + || true
 fi
+
+# --------------------------------------------------
+# 8. COW AUDIO EFFECTS (ERROR MOO & SYSTEM BELL)
+# --------------------------------------------------
+
+# Terminal command error moo trigger
+cat << 'EOF' >> /etc/bash.bashrc
+
+# Play a moo sound on command error
+PROMPT_COMMAND='if [ $? -ne 0 ]; then (speaker-test -t sine -f 120 -l 1 >/dev/null 2>&1 & sleep 0.15 && kill $!) 2>/dev/null; fi'
+EOF
+
+# GNOME alert bell sound replacement
+mkdir -p /usr/share/sounds/freedesktop/stereo/
+wget -O /usr/share/sounds/freedesktop/stereo/bell.oga "$LAMP_MOO_OGA" || true
 
 echo "=========================================="
 echo "      LAMPUNTU REBRANDING COMPLETE        "
