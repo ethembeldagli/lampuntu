@@ -99,7 +99,7 @@ function check_config() {
 function setup_host() {
     echo "=====> running setup_host ..."
     sudo apt update
-    sudo apt install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools dosfstools isolinux syslinux-utils
+    sudo apt install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools dosfstools
     sudo mkdir -p chroot
 }
 
@@ -166,7 +166,7 @@ function build_iso() {
 
     printf $(sudo du -sx --block-size=1 chroot | cut -f1) | sudo tee image/casper/filesystem.size
 
-    # GRUB Config for both UEFI & BIOS
+    # GRUB Configuration
     cat << EOF_GRUB > image/boot/grub/grub.cfg
 set default="0"
 set timeout=10
@@ -189,7 +189,7 @@ menuentry "${GRUB_INSTALL_LABEL}" {
 }
 EOF_GRUB
 
-    # Build EFI Boot Loader Image
+    # Build UEFI Image (bootx64.efi)
     grub-mkstandalone \
         --format=x86_64-efi \
         --output=image/EFI/boot/bootx64.efi \
@@ -197,7 +197,7 @@ EOF_GRUB
         --fonts="" \
         "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
-    # Create FAT EFI boot partition file
+    # Create FAT Partition Image for UEFI Boot
     mkdir -p image/boot
     dd if=/dev/zero of=image/boot/efiboot.img bs=1M count=10
     mkfs.vfat image/boot/efiboot.img
@@ -205,17 +205,18 @@ EOF_GRUB
     mmd -i image/boot/efiboot.img ::EFI/BOOT
     mcopy -i image/boot/efiboot.img image/EFI/boot/bootx64.efi ::EFI/BOOT/BOOTX64.EFI
 
-    # Create GRUB El-Torito BIOS Boot image
+    # Build Minimal i386-pc Image for Legacy BIOS (Explicitly specify minimal modules to avoid size limit)
     grub-mkstandalone \
         --format=i386-pc \
         --output=image/boot/eltorito.img \
+        --install-modules="biosdisk iso9660 part_msdos part_gpt fat normal linux boot configfile tar" \
         --locales="" \
         --fonts="" \
         "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
     ISO_NAME="${TARGET_NAME}-${TARGET_UBUNTU_VERSION}-amd64-${DATE}.iso"
 
-    # Build Universal Dual-Boot ISO with xorriso
+    # Assemble ISO using xorriso
     sudo xorriso -as mkisofs \
         -r -V "LAMPUNTU_LIVE" \
         -J -joliet-long \
