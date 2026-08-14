@@ -140,19 +140,127 @@ if [ -d "/etc/update-motd.d/" ]; then
 fi
 
 # --------------------------------------------------
-# 8. COW AUDIO EFFECTS (ERROR MOO & SYSTEM BELL)
+# 8. DOWNLOAD MOO SOUND EFFECT
 # --------------------------------------------------
-
-# Terminal command error moo trigger
-cat << 'EOF' >> /etc/bash.bashrc
-
-# Play a moo sound on command error
-PROMPT_COMMAND='if [ $? -ne 0 ]; then (speaker-test -t sine -f 120 -l 1 >/dev/null 2>&1 & sleep 0.15 && kill $!) 2>/dev/null; fi'
-EOF
-
-# GNOME alert bell sound replacement
 mkdir -p /usr/share/sounds/freedesktop/stereo/
 wget -O /usr/share/sounds/freedesktop/stereo/bell.oga "$LAMP_MOO_OGA" || true
+
+# --------------------------------------------------
+# 9. RENAME ALL EXISTING & NEW .DESKTOP FILES TO "COW..."
+# --------------------------------------------------
+cat << 'EOF' > /usr/local/bin/cow-rename-desktop-files
+#!/bin/bash
+for dir in /usr/share/applications /usr/local/share/applications; do
+    if [ -d "$dir" ]; then
+        find "$dir" -name "*.desktop" | while read -r file; do
+            if grep -q "^Name=" "$file" && ! grep -q "^Name=Cow " "$file"; then
+                sed -i 's/^Name=/Name=Cow /g' "$file"
+            fi
+        done
+    fi
+done
+EOF
+
+chmod +x /usr/local/bin/cow-rename-desktop-files
+/usr/local/bin/cow-rename-desktop-files || true
+
+cat << 'EOF' > /usr/local/bin/cow-desktop-watcher
+#!/bin/bash
+while true; do
+    /usr/local/bin/cow-rename-desktop-files
+    sleep 5
+done
+EOF
+
+chmod +x /usr/local/bin/cow-desktop-watcher
+
+cat << 'EOF' > /etc/systemd/system/cow-desktop-watcher.service
+[Unit]
+Description=Watch and rename desktop app entries to Cow
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/local/bin/cow-desktop-watcher
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+if command -v systemctl &> /dev/null; then
+    systemctl enable cow-desktop-watcher.service || true
+fi
+
+# --------------------------------------------------
+# 10. BASH ENFORCEMENT & AUDIO TRIGGERS
+# --------------------------------------------------
+cat << 'EOF' >> /etc/bash.bashrc
+
+# Play sound helper function (Sets volume to 100% first)
+_play_moo_max_vol() {
+    (
+        # Maximizes ALSA master volume
+        amixer sset Master 100% >/dev/null 2>&1 || true
+        # Maximizes PipeWire/PulseAudio sink volume
+        pactl set-sink-volume @DEFAULT_SINK@ 100% >/dev/null 2>&1 || true
+
+        # Play sound via available player
+        pw-play /usr/share/sounds/freedesktop/stereo/bell.oga || \
+        paplay /usr/share/sounds/freedesktop/stereo/bell.oga || \
+        ogg123 /usr/share/sounds/freedesktop/stereo/bell.oga || \
+        speaker-test -t sine -f 120 -l 1
+    ) >/dev/null 2>&1 &
+}
+
+# 1. Alias for 'sheep' command -> play moo sound
+sheep() {
+    echo "BAAAA? NO! MOOOOO!"
+    _play_moo_max_vol
+}
+
+# 2. Function alias handler for 'cow' prefix enforcement
+cow() {
+    if [ -z "$1" ]; then
+        echo "MOOOO! Usage: cow <command>"
+        _play_moo_max_vol
+        return 1
+    fi
+    
+    # Execute the requested command
+    "$@"
+    local status=$?
+    
+    # Trigger moo sound if command failed (error exit code)
+    if [ $status -ne 0 ]; then
+        _play_moo_max_vol
+    fi
+    return $status
+}
+
+# Trap execution to enforce 'cow' prefix
+_check_cow_prefix() {
+    local cmd="$BASH_COMMAND"
+    
+    # Allow empty/internal setup commands
+    [[ -z "$cmd" ]] && return
+    [[ "$cmd" =~ ^_ ]] && return
+    [[ "$cmd" == "cow"* ]] && return
+    [[ "$cmd" == "sheep"* ]] && return
+    [[ "$cmd" == "exit"* ]] && return
+    [[ "$cmd" == "clear"* ]] && return
+
+    echo -e "\e[1;31mMOOOOO! You must prefix commands with 'cow'! Example: cow $cmd\e[0m"
+    _play_moo_max_vol
+    return 1
+}
+
+trap '_check_cow_prefix' DEBUG
+
+# PROMPT_COMMAND trigger for non-zero command failures
+PROMPT_COMMAND='if [ $? -ne 0 ]; then _play_moo_max_vol; fi'
+
+EOF
 
 echo "=========================================="
 echo "      LAMPUNTU REBRANDING COMPLETE        "
