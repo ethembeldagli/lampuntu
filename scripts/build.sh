@@ -59,7 +59,6 @@ function chroot_exit_teardown() {
 }
 
 function check_host() {
-    # Allow running as root in GitHub Actions or CI environment
     if [ "${GITHUB_ACTIONS:-false}" = "true" ] || [ "${CI:-false}" = "true" ]; then
         return 0
     fi
@@ -100,7 +99,7 @@ function check_config() {
 function setup_host() {
     echo "=====> running setup_host ..."
     sudo apt update
-    sudo apt install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools dosfstools
+    sudo apt install -y debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools dosfstools isolinux syslinux-utils
     sudo mkdir -p chroot
 }
 
@@ -135,19 +134,23 @@ function run_chroot() {
 function build_iso() {
     echo "=====> running build_iso ..."
 
+    rm -rf image
     mkdir -p image/casper
-    mkdir -p image/isolinux
+    mkdir -p image/boot/grub
+    mkdir -p image/EFI/boot
 
     chroot_enter_setup
     
     sudo chroot chroot apt-get update
-    sudo chroot chroot apt-get install -y "${TARGET_KERNEL_PACKAGE}" casper grub-efi-amd64-signed
+    sudo chroot chroot apt-get install -y "${TARGET_KERNEL_PACKAGE}" casper grub-efi-amd64-signed grub-pc-bin
 
     chroot_exit_teardown
 
+    # Copy Kernel and Initrd
     sudo cp chroot/boot/vmlinuz-* image/casper/vmlinuz
     sudo cp chroot/boot/initrd.img-* image/casper/initrd
 
+    # Create SquashFS
     sudo rm -f image/casper/filesystem.squashfs
     sudo mksquashfs chroot image/casper/filesystem.squashfs \
         -noappend -no-duplicates -no-recovery \
@@ -163,12 +166,17 @@ function build_iso() {
 
     printf $(sudo du -sx --block-size=1 chroot | cut -f1) | sudo tee image/casper/filesystem.size
 
-    cat << EOF_GRUB > image/isolinux/grub.cfg
-search --set=root --file /casper/vmlinuz
-insmod all_video
-
+    # GRUB Config for both UEFI & BIOS
+    cat << EOF_GRUB > image/boot/grub/grub.cfg
 set default="0"
 set timeout=10
+
+insmod all_video
+insmod gzio
+insmod part_gpt
+insmod part_msdos
+insmod fat
+insmod iso9660
 
 menuentry "${GRUB_LIVEBOOT_LABEL}" {
     linux /casper/vmlinuz boot=casper quiet splash ---
@@ -181,32 +189,45 @@ menuentry "${GRUB_INSTALL_LABEL}" {
 }
 EOF_GRUB
 
-    mkdir -p image/EFI/boot
+    # Build EFI Boot Loader Image
     grub-mkstandalone \
         --format=x86_64-efi \
-        --output=image/isolinux/bootx64.efi \
+        --output=image/EFI/boot/bootx64.efi \
         --locales="" \
         --fonts="" \
-        "boot/grub/grub.cfg=image/isolinux/grub.cfg"
+        "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
-    cd image/isolinux
-    dd if=/dev/zero of=efiboot.img bs=1M count=10
-    mkfs.vfat efiboot.img
-    mmd -i efiboot.img ::EFI
-    mmd -i efiboot.img ::EFI/BOOT
-    mcopy -i efiboot.img bootx64.efi ::EFI/BOOT/BOOTX64.EFI
-    cd ../..
+    # Create FAT EFI boot partition file
+    mkdir -p image/boot
+    dd if=/dev/zero of=image/boot/efiboot.img bs=1M count=10
+    mkfs.vfat image/boot/efiboot.img
+    mmd -i image/boot/efiboot.img ::EFI
+    mmd -i image/boot/efiboot.img ::EFI/BOOT
+    mcopy -i image/boot/efiboot.img image/EFI/boot/bootx64.efi ::EFI/BOOT/BOOTX64.EFI
+
+    # Create GRUB El-Torito BIOS Boot image
+    grub-mkstandalone \
+        --format=i386-pc \
+        --output=image/boot/eltorito.img \
+        --locales="" \
+        --fonts="" \
+        "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
     ISO_NAME="${TARGET_NAME}-${TARGET_UBUNTU_VERSION}-amd64-${DATE}.iso"
 
+    # Build Universal Dual-Boot ISO with xorriso
     sudo xorriso -as mkisofs \
-        -iso-level 3 \
+        -r -V "LAMPUNTU_LIVE" \
+        -J -joliet-long \
         -full-iso9660-filenames \
-        -volid "LAMPUNTU_LIVE" \
-        -output "${ISO_NAME}" \
-        -eltorito-boot isolinux/efiboot.img \
+        -b boot/eltorito.img \
+        -no-emul-boot -boot-load-size 4 -boot-info-table \
+        --eltorito-catalog boot/eltorito.cat \
+        -eltorito-alt-boot \
+        -e boot/efiboot.img \
         -no-emul-boot \
-        -eltorito-catalog isolinux/boot.cat \
+        -append_partition 2 0xef image/boot/efiboot.img \
+        -output "${ISO_NAME}" \
         image
 
     echo "=========================================="
