@@ -118,6 +118,10 @@ function run_chroot() {
         sudo chmod +x chroot/root/make-lampuntu.sh
     fi
 
+    if [[ -f "$SCRIPT_DIR/lampuntu-logo.ansi.txt" ]]; then
+        sudo cp $SCRIPT_DIR/lampuntu-logo.ansi.txt chroot/etc/lampuntu-logo.ansi.txt
+    fi
+
     if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
         sudo ln -f $SCRIPT_DIR/config.sh chroot/root/config.sh
     fi
