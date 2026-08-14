@@ -134,10 +134,10 @@ function run_chroot() {
 function build_iso() {
     echo "=====> running build_iso ..."
 
-    rm -rf image
+    sudo rm -rf image
     mkdir -p image/casper
     mkdir -p image/boot/grub
-    mkdir -p image/EFI/boot
+    mkdir -p image/EFI/BOOT
 
     chroot_enter_setup
     
@@ -166,7 +166,7 @@ function build_iso() {
 
     printf $(sudo du -sx --block-size=1 chroot | cut -f1) | sudo tee image/casper/filesystem.size
 
-    # GRUB Configuration
+    # GRUB Configuration File
     cat << EOF_GRUB > image/boot/grub/grub.cfg
 set default="0"
 set timeout=10
@@ -189,34 +189,34 @@ menuentry "${GRUB_INSTALL_LABEL}" {
 }
 EOF_GRUB
 
-    # Build UEFI Image (bootx64.efi)
+    # Generate Standalone UEFI Binary
     grub-mkstandalone \
         --format=x86_64-efi \
-        --output=image/EFI/boot/bootx64.efi \
+        --output=image/EFI/BOOT/BOOTX64.EFI \
         --locales="" \
         --fonts="" \
         "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
-    # Create FAT Partition Image for UEFI Boot
+    # Create FAT EFI Boot Partition Image
     mkdir -p image/boot
     dd if=/dev/zero of=image/boot/efiboot.img bs=1M count=10
     mkfs.vfat image/boot/efiboot.img
     mmd -i image/boot/efiboot.img ::EFI
     mmd -i image/boot/efiboot.img ::EFI/BOOT
-    mcopy -i image/boot/efiboot.img image/EFI/boot/bootx64.efi ::EFI/BOOT/BOOTX64.EFI
+    mcopy -i image/boot/efiboot.img image/EFI/BOOT/BOOTX64.EFI ::EFI/BOOT/BOOTX64.EFI
 
-    # Build Minimal i386-pc Image for Legacy BIOS (Explicitly specify minimal modules to avoid size limit)
+    # Minimal core modules for i386-pc to fit inside BIOS MBR limit
     grub-mkstandalone \
         --format=i386-pc \
         --output=image/boot/eltorito.img \
-        --install-modules="biosdisk iso9660 part_msdos part_gpt fat normal linux boot configfile tar" \
+        --install-modules="biosdisk iso9660 part_msdos part_gpt fat normal linux boot configfile" \
         --locales="" \
         --fonts="" \
         "boot/grub/grub.cfg=image/boot/grub/grub.cfg"
 
     ISO_NAME="${TARGET_NAME}-${TARGET_UBUNTU_VERSION}-amd64-${DATE}.iso"
 
-    # Assemble ISO using xorriso
+    # Create Hybrid ISO using xorriso
     sudo xorriso -as mkisofs \
         -r -V "LAMPUNTU_LIVE" \
         -J -joliet-long \
