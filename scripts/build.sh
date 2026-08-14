@@ -45,194 +45,197 @@ function find_index() {
 function chroot_enter_setup() {
     sudo mount --bind /dev chroot/dev
     sudo mount --bind /run chroot/run
-    sudo chroot chroot mount none -t proc /proc
-    sudo chroot chroot mount none -t sysfs /sys
-    sudo chroot chroot mount none -t devpts /dev/pts
+    sudo mount -t proc /proc chroot/proc
+    sudo mount -t sysfs /sys chroot/sys
 }
 
-function chroot_exit_teardown() {
-    sudo chroot chroot umount -l /proc
-    sudo chroot chroot umount -l /sys
-    sudo chroot chroot umount -l /dev/pts
-    sudo umount -l chroot/dev
-    sudo umount -l chroot/run
-}
-
-function check_host() {
-    local os_ver
-    os_ver=`lsb_release -i | grep -E "(Ubuntu|Debian)"`
-    if [[ -z "$os_ver" ]]; then
-        echo "WARNING : OS is not Debian or Ubuntu and is untested"
-    fi
-
-    if [ $(id -u) -eq 0 ]; then
-        echo "This script should not be run as 'root'"
-        exit 1
-    fi
-}
-
-function load_config() {
-    if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
-        . "$SCRIPT_DIR/config.sh"
-    elif [[ -f "$SCRIPT_DIR/default_config.sh" ]]; then
-        . "$SCRIPT_DIR/default_config.sh"
-    else
-        >&2 echo "Unable to find default config file  $SCRIPT_DIR/default_config.sh, aborting."
-        exit 1
-    fi
-}
-
-function check_config() {
-    local expected_config_version
-    expected_config_version="0.4"
-
-    if [[ "$CONFIG_FILE_VERSION" != "$expected_config_version" ]]; then
-        >&2 echo "Invalid or old config version $CONFIG_FILE_VERSION, expected $expected_config_version. Please update your configuration file from the default."
-        exit 1
-    fi
+function chroot_exit_setup() {
+    sudo umount -l chroot/dev || true
+    sudo umount -l chroot/run || true
+    sudo umount -l chroot/proc || true
+    sudo umount -l chroot/sys || true
 }
 
 function setup_host() {
-    echo "=====> running setup_host ..."
+    echo "=========================================="
+    echo " 1. SETTING UP HOST DEPENDENCIES         "
+    echo "=========================================="
     sudo apt update
-    sudo apt install -y debootstrap squashfs-tools xorriso
-    sudo mkdir -p chroot
+    sudo apt install -y \
+        debootstrap \
+        squashfs-tools \
+        xorriso \
+        grub-pc-bin \
+        grub-efi-amd64-bin \
+        mtools \
+        dosfstools
 }
 
 function debootstrap() {
-    echo "=====> running debootstrap ... will take a couple of minutes ..."
-    sudo debootstrap --arch=amd64 --variant=minbase $TARGET_UBUNTU_VERSION chroot $TARGET_UBUNTU_MIRROR
+    echo "=========================================="
+    echo " 2. RUNNING DEBOOTSTRAP                  "
+    echo "=========================================="
+    source "${SCRIPT_DIR}/config.sh"
+    
+    mkdir -p "${SCRIPT_DIR}/work"
+    cd "${SCRIPT_DIR}/work"
+
+    sudo debootstrap \
+        --arch=amd64 \
+        --variant=minbase \
+        "${TARGET_UBUNTU_VERSION}" \
+        chroot \
+        "${TARGET_UBUNTU_MIRROR}"
 }
 
 function run_chroot() {
-    echo "=====> running run_chroot ..."
+    echo "=========================================="
+    echo " 3. CUSTOMIZING CHROOT SYSTEM             "
+    echo "=========================================="
+    source "${SCRIPT_DIR}/config.sh"
 
-    chroot_enter_setup
+    cd "${SCRIPT_DIR}/work"
 
-    # Setup build scripts in chroot environment
-    sudo ln -f $SCRIPT_DIR/chroot_build.sh chroot/root/chroot_build.sh
-    sudo ln -f $SCRIPT_DIR/default_config.sh chroot/root/default_config.sh
-
-    if [[ -f "$SCRIPT_DIR/make-lampuntu.sh" ]]; then
-        sudo cp $SCRIPT_DIR/make-lampuntu.sh chroot/root/make-lampuntu.sh
+    # Copy make-lampuntu.sh into chroot root dir if it exists locally
+    if [ -f "${SCRIPT_DIR}/make-lampuntu.sh" ]; then
+        sudo cp "${SCRIPT_DIR}/make-lampuntu.sh" chroot/root/make-lampuntu.sh
         sudo chmod +x chroot/root/make-lampuntu.sh
     fi
 
-    if [[ -f "$SCRIPT_DIR/lampuntu-logo.ansi.txt" ]]; then
-        sudo cp $SCRIPT_DIR/lampuntu-logo.ansi.txt chroot/etc/lampuntu-logo.ansi.txt
-    fi
+    chroot_enter_setup
 
-    if [[ -f "$SCRIPT_DIR/config.sh" ]]; then
-        sudo ln -f $SCRIPT_DIR/config.sh chroot/root/config.sh
-    fi
+    # Execute custom commands inside chroot
+    sudo chroot chroot /bin/bash -s << 'EOF_CHROOT'
+set -e
 
-    # Launch into chroot environment to build install image.
-    sudo chroot chroot /usr/bin/env DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-readline} /root/chroot_build.sh -
+source /etc/environment
+export HOME=/root
+export LC_ALL=C
 
-    # Cleanup after image changes
-    sudo rm -f chroot/root/chroot_build.sh
-    sudo rm -f chroot/root/default_config.sh
-    sudo rm -f chroot/root/make-lampuntu.sh
-    if [[ -f "chroot/root/config.sh" ]]; then
-        sudo rm -f chroot/root/config.sh
-    fi
+# Setup sources list
+cat << 'EOF_SOURCES' > /etc/apt/sources.list
+deb http://us.archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+deb http://us.archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+deb http://us.archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+EOF_SOURCES
 
-    chroot_exit_teardown
+apt-get update
+apt-get install -y systemd-sysv dbus
+
+# Import functions and run customization
+EOF_CHROOT
+
+    # Run the customization function defined in config.sh inside chroot
+    sudo chroot chroot /bin/bash -c "$(declare -f customize_image); customize_image"
+
+    chroot_exit_setup
 }
 
 function build_iso() {
-    echo "=====> running build_iso ..."
+    echo "=========================================="
+    echo " 4. BUILDING LAMPUNTU ISO                 "
+    echo "=========================================="
+    source "${SCRIPT_DIR}/config.sh"
 
-    # move image artifacts
-    sudo mv chroot/image .
+    cd "${SCRIPT_DIR}/work"
 
-    # compress rootfs
-    sudo mksquashfs chroot image/casper/filesystem.squashfs \
-        -noappend -no-duplicates -no-recovery \
-        -wildcards \
-        -comp xz -b 1M -Xdict-size 100% \
-        -e "var/cache/apt/archives/*" \
-        -e "root/*" \
-        -e "root/.*" \
-        -e "tmp/*" \
-        -e "tmp/.*" \
-        -e "swapfile"
+    mkdir -p image/casper
+    mkdir -p image/isolinux
 
-    # write the filesystem.size
-    printf $(sudo du -sx --block-size=1 chroot | cut -f1) | sudo tee image/casper/filesystem.size
+    # Install kernel and casper in chroot
+    chroot_enter_setup
+    sudo chroot chroot apt-get install -y "${TARGET_KERNEL_PACKAGE}" casper grub-efi-amd64-signed
+    chroot_exit_setup
 
-    pushd $SCRIPT_DIR/image
+    # Copy Kernel and Initrd
+    sudo cp chroot/boot/vmlinuz-* image/casper/vmlinuz
+    sudo cp chroot/boot/initrd.img-* image/casper/initrd
 
-    sudo xorriso \
-        -as mkisofs \
-        -iso-level 3 \
-        -full-iso9660-filenames \
-        -J -J -joliet-long \
-        -volid "$TARGET_NAME" \
-        -output "$SCRIPT_DIR/$TARGET_NAME.iso" \
-      -eltorito-boot isolinux/bios.img \
-        -no-emul-boot \
-        -boot-load-size 4 \
-        -boot-info-table \
-        --eltorito-catalog boot.catalog \
-        --grub2-boot-info \
-        --grub2-mbr ../chroot/usr/lib/grub/i386-pc/boot_hybrid.img \
-        -partition_offset 16 \
-        --mbr-force-bootable \
-      -eltorito-alt-boot \
-        -no-emul-boot \
-        -e isolinux/efiboot.img \
-        -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b isolinux/efiboot.img \
-        -appended_part_as_gpt \
-        -iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 \
-        -m "isolinux/efiboot.img" \
-        -m "isolinux/bios.img" \
-        -e '--interval:appended_partition_2:::' \
-      -exclude isolinux \
-      -graft-points \
-         "/EFI/boot/bootx64.efi=isolinux/bootx64.efi" \
-         "/EFI/boot/mmx64.efi=isolinux/mmx64.efi" \
-         "/EFI/boot/grubx64.efi=isolinux/grubx64.efi" \
-         "/EFI/ubuntu/grub.cfg=isolinux/grub.cfg" \
-         "/isolinux/bios.img=isolinux/bios.img" \
-         "/isolinux/efiboot.img=isolinux/efiboot.img" \
-         "."
+    # Create SquashFS filesystem
+    sudo rm -f image/casper/filesystem.squashfs
+    sudo mksquashfs chroot image/casper/filesystem.squashfs -e boot
 
-    popd
+    # Size calculation
+    printf $(du -sx --block-size=1 chroot | cut -f1) > image/casper/filesystem.size
+
+    # Configure GRUB
+    cat << EOF_GRUB > image/isolinux/grub.cfg
+search --set=root --file /casper/vmlinuz
+insmod all_video
+
+set default="0"
+set timeout=10
+
+menuentry "${GRUB_LIVEBOOT_LABEL}" {
+    linux /casper/vmlinuz boot=casper quiet splash ---
+    initrd /casper/initrd
 }
 
-# =============   main  ================
+menuentry "${GRUB_INSTALL_LABEL}" {
+    linux /casper/vmlinuz boot=casper only-ubiquity quiet splash ---
+    initrd /casper/initrd
+}
+EOF_GRUB
 
-cd $SCRIPT_DIR
+    # Generate EFI boot images
+    mkdir -p image/EFI/boot
+    grub-mkstandalone \
+        --format=x86_64-efi \
+        --output=image/isolinux/bootx64.efi \
+        --locales="" \
+        --fonts="" \
+        "boot/grub/grub.cfg=image/isolinux/grub.cfg"
 
-load_config
-check_config
-check_host
+    cd image/isolinux
+    dd if=/dev/zero of=efiboot.img bs=1M count=10
+    mkfs.vfat efiboot.img
+    mmd -i efiboot.img ::EFI
+    mmd -i efiboot.img ::EFI/BOOT
+    mcopy -i efiboot.img bootx64.efi ::EFI/BOOT/BOOTX64.EFI
+    cd ../..
 
-if [[ $# == 0 || $# -gt 3 ]]; then help; fi
+    # Create ISO file
+    ISO_NAME="${TARGET_NAME}-${TARGET_UBUNTU_VERSION}-amd64-${DATE}.iso"
 
-dash_flag=false
-start_index=0
-end_index=${#CMD[*]}
-for ii in "$@";
-do
-    if [[ $ii == "-" ]]; then
-        dash_flag=true
-        continue
-    fi
-    find_index $ii
-    if [[ $dash_flag == false ]]; then
-        start_index=$index
-    else
-        end_index=$(($index+1))
-    fi
-done
-if [[ $dash_flag == false ]]; then
-    end_index=$(($start_index + 1))
+    xorriso -as mkisofs \
+        -iso-level 3 \
+        -full-iso-ribbon \
+        -volid "LAMPUNTU_LIVE" \
+        -output "../${ISO_NAME}" \
+        -eltorito-boot isolinux/efiboot.img \
+        -no-emul-boot \
+        -eltorito-catalog isolinux/boot.cat \
+        image
+
+    echo "=========================================="
+    echo " ISO CREATED SUCCESSFULLY: ${ISO_NAME}   "
+    echo "=========================================="
+}
+
+# Command Line Parsing
+if [ $# -eq 0 ]; then
+    help
 fi
 
-for ((ii=$start_index; ii<$end_index; ii++)); do
-    ${CMD[ii]}
-done
+if [ "$1" == "-" ]; then
+    start_idx=0
+    end_idx=$((${#CMD[*]} - 1))
+else
+    find_index "$1"
+    start_idx=$index
+    if [ $# -ge 2 ] && [ "$2" == "-" ]; then
+        if [ $# -eq 3 ]; then
+            find_index "$3"
+            end_idx=$index
+        else
+            end_idx=$((${#CMD[*]} - 1))
+        fi
+    else
+        end_idx=$start_idx
+    fi
+fi
 
-echo "$0 - Initial build is done!"
+for ((i=$start_idx; i<=$end_idx; i++)); do
+    ${CMD[i]}
+done
